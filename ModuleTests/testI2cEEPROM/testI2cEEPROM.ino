@@ -1,35 +1,5 @@
-/* Write and read long data string to I2C EEPROM
-   maximum is 65536 bit. i.e. address stops at 65535.
-   Extra data will wrap over to address 0
-
-   Rongzhong Li
-   August 2018
-
-   Copyright (c) 2018 Petoi LLC.
-
-  The MIT license
-  
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  SOFTWARE.
-*/
-
 #include <Wire.h>
-#define DEVICE_ADDRESS 0x54    //Address of eeprom chip
+#define DEVICE_ADDRESS 0x50
 #define WIRE_BUFFER 30 //Arduino wire allows 32 byte buffer, with 2 byte for address.
 #define WIRE_LIMIT 16 //That leaves 30 bytes for data. use 16 to balance each writes
 #define PAGE_LIMIT 32 //AT24C32D 32-byte Page Write Mode. Partial Page Writes Allowed
@@ -138,62 +108,85 @@ char data[] = " The quick brown fox jumps over the lazy dog. \
 The five boxing wizards jump quickly. Pack my box with five dozen liquor jugs."; // data to write
 
 //char data[]={16,-3,5,7,9};
+//void setup()
+//{
+//  Wire.begin();
+//  Serial.begin(115200);
+//  delay(1);
+//
+//  PTL("Start");
+//#ifdef CLEAR  //clear memory for a new write and read test
+//  PTL("Takes time. Wait for next message...");
+//  for (int i = 0; i < SIZE; i++)  {
+//    i2c_eeprom_write_byte( i, '#');
+//    delay(2);
+//  }
+//  PTL("Done clearing!");
+//#else
+//  unsigned int eeAddress = START;
+//  data[0] = strlen(data);
+//#ifdef WRITE
+//  writeLong(eeAddress, data, strlen(data));
+//  PTL("current EE address: " + String(eeAddress));
+//  PTL();
+//#endif
+//  eeAddress = START;
+//  int len = i2c_eeprom_read_byte(eeAddress);
+//  char *buffer = new char[len];
+//  readLong(eeAddress, buffer);
+//  PTL();
+//  PTL("the buffer is: ");
+//  for (int i = 0; i < len; i++)
+//    PT(buffer[i]);
+//  PTL();
+//  PTL();
+//#endif
+//  PTL("read by individual bytes for checking:");
+//  int c = 0;
+//  for (long r = START; r < START + strlen(data); r++) {
+//    PT((char)i2c_eeprom_read_byte(r));
+//    if (++c == 16) {
+//      PTL();
+//      c = 0;
+//    }
+//    else
+//      PT(' ');
+//  }
+//  PTL();
+//  PTL("read from address 0");
+//  c = 0;
+//  for (long r = 0; r < strlen(data); r++) {
+//    PT((char)i2c_eeprom_read_byte(r));
+//    if (++c == 16) {
+//      PTL();
+//      c = 0;
+//    }
+//    else
+//      PT(' ');
+//  }
+//}
+
 void setup()
 {
-  Wire.begin(); // initialise the connection
+  Wire.begin();
   Serial.begin(115200);
   delay(1);
 
-  PTL("Start");
-#ifdef CLEAR  //clear memory for a new write and read test
-  PTL("Takes time. Wait for next message...");
-  for (int i = 0; i < SIZE; i++)  {
-    i2c_eeprom_write_byte( i, '#');
+  for (int i = 0; i < 8192; i++)  {
+    i2c_eeprom_write_byte( i, 0);
     delay(2);
   }
-  PTL("Done clearing!");
-#else
-  unsigned int eeAddress = START;
-  data[0] = strlen(data);
-#ifdef WRITE
-  writeLong(eeAddress, data, strlen(data));
-  PTL("current EE address: " + String(eeAddress));
-  PTL();
-#endif
-  eeAddress = START;
-  int len = i2c_eeprom_read_byte(eeAddress);
-  char *buffer = new char[len];
+
+  PTL("Start");
+  unsigned int eeAddress = 0;
+  char *buffer = new char[1024];
   readLong(eeAddress, buffer);
   PTL();
   PTL("the buffer is: ");
-  for (int i = 0; i < len; i++)
+  for (int i = 0; i < 1024; i++)
     PT(buffer[i]);
   PTL();
   PTL();
-#endif
-  PTL("read by individual bytes for checking:");
-  int c = 0;
-  for (long r = START; r < START + strlen(data); r++) {
-    PT((char)i2c_eeprom_read_byte(r));
-    if (++c == 16) {
-      PTL();
-      c = 0;
-    }
-    else
-      PT(' ');
-  }
-  PTL();
-  PTL("read from address 0");
-  c = 0;
-  for (long r = 0; r < strlen(data); r++) {
-    PT((char)i2c_eeprom_read_byte(r));
-    if (++c == 16) {
-      PTL();
-      c = 0;
-    }
-    else
-      PT(' ');
-  }
 }
 
 void loop() {

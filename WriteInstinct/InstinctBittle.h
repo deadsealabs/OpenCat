@@ -3,7 +3,7 @@
 #define I2C_EEPROM
 
 const char bdF[] PROGMEM = { 
-15, 0, 0, 1,
+15, 0, 0, 1, // First integer is the period. It should correspond to number of rows
   56,  56,  72,  72, -21, -21, -35, -35,
   46,  46,  52,  52,   7,   7,   9,   9,
   46,  46,  52,  52,   7,   7,   9,   9,

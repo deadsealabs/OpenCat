@@ -1,170 +1,7 @@
-/*
-   Instincts trained by Rongzhong
-   Save calibration data and constants to EEPROM
-
-   This sketch may also includes others' codes under MIT or other open source liscence.
-   Check those liscences in corresponding module test folders.
-   Feel free to contact us if you find any missing references.
-
-   Rongzhong Li
-   Jan 3rd, 2021
-   Copyright (c) 2021 Petoi LLC.
-
-  The MIT License
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  SOFTWARE.
-*/
 #include "OpenCat.h"
 #define INSTINCT_SKETCH
 //#define AUTORUN
 
-void saveMPUcalib(int * var) {
-  for (byte i = 0; i < 6; i++)
-    EEPROM.update(MPUCALIB + i, var[i]);
-}
-
-void writeConst() {
-  EEPROM.update(MELODY, sizeof(melody));
-  for (byte i = 0; i < sizeof(melody); i++)
-    EEPROM.update(MELODY - 1 - i, melody[i]);
-  PTLF("Reset joint calibration? (Y/n)");
-#ifndef AUTORUN
-  while (!Serial.available());
-  char resetJointCalibrationQ = Serial.read();
-#endif
-  for (byte i = 0; i < DOF; i++) {
-#ifndef AUTORUN
-    if (resetJointCalibrationQ == 'Y')
-      EEPROM.update(CALIB + i, calibs[i]);
-#endif
-    EEPROM.update(PIN + i, pins[i]);
-    EEPROM.update(MID_SHIFT + i, middleShifts[i]);
-    EEPROM.update(ROTATION_DIRECTION + i, rotationDirections[i]);
-    EEPROM.update(SERVO_ANGLE_RANGE + i, servoAngleRanges[i]);
-    for (byte para = 0; para < NUM_ADAPT_PARAM; para++) {
-      EEPROM.update(ADAPT_PARAM + i * NUM_ADAPT_PARAM + para, round(adaptiveParameterArray[i][para]));
-    }
-    /*PT(servoCalib(i));
-      PT(',');*/
-  }
-  //PTL();
-}
-void saveSkillInfoFromProgmemToOnboardEeprom() {
-  int skillAddressShift = 0;
-  unsigned int i2cEepromAddress = 0; //won't hurt if unused
-#ifdef I2C_EEPROM
-  PTLF("\n* Update Instincts? (Y/n)");
-#ifndef AUTORUN
-  while (!Serial.available());
-  char choice = Serial.read();
-  PT(choice == 'Y' ? "Will" : "Won't");
-#endif
-  PTL(" overwrite Instincts on external I2C EEPROM!");
-#endif
-  PTLF("Saving skill info...");
-  for (byte s = 0; s < NUM_SKILLS; s++) {//save skill info to on-board EEPROM
-    byte len = strlen(skillNameWithType[s]);
-    EEPROM.update(SKILLS + skillAddressShift++, len - 1); //the last char in name denotes skill type, I(nstinct) on external eeprom, N(ewbility) on progmem
-    PT(skillNameWithType[s][len - 1] == 'I' ? "I nstinct:\t" : "N ewbility:\t");
-    for (byte l = 0; l < len; l++) {
-      PT(skillNameWithType[s][l]);
-      EEPROM.update(SKILLS + skillAddressShift++, skillNameWithType[s][l]);
-    }
-    PTL();
-    //PTL("Current EEPROM address is " + String(SKILLS + skillAddressShift));
-#ifdef I2C_EEPROM
-    if (!EEPROMOverflow)
-      if (skillNameWithType[s][len - 1] == 'I'
-#ifndef AUTORUN
-          && choice == 'Y'
-#endif
-         ) { //  if there's instinct and there's i2c eeprom, and user decide to update.
-        // save the data array to i2c eeprom. its address will be saved to onboard eeprom
-        EEPROMWriteInt(SKILLS + skillAddressShift, i2cEepromAddress);
-        copyDataFromPgmToI2cEeprom(i2cEepromAddress,  (unsigned int) progmemPointer[s]);
-      }
-#endif
-    skillAddressShift += 2; // one int (2 bytes) for address
-  }
-  PTLF("  *********** Notice! *********");
-  PTLF("    Maximal storage of onboard EEPROM is 1024 bytes.");
-  PTF("\tInstinctive dictionary used ");
-  PT(SKILLS + skillAddressShift);
-  PT(" bytes (");
-  PT(float(100) * (SKILLS + skillAddressShift) / 1024);
-  PTLF(" %)!");
-#ifdef I2C_EEPROM
-#ifndef AUTORUN
-  if (choice == 'Y')
-#endif
-  {
-    PTF("    Maximal storage of external I2C EEPROM is ");
-    PT(EEPROM_SIZE);
-    PTLF(" bytes.");
-    PT("\tInstinctive data used ");
-    PT(i2cEepromAddress);
-    PT(" bytes (");
-    PT(float(100)*i2cEepromAddress / EEPROM_SIZE);
-    PTLF(" %)!");
-  }
-#endif
-  PTLF("  *****************************");
-  PTLF("Finished!");
-}
-
-// the following MPU calibration codes are modified based on http://wired.chillibasket.com/2015/01/calibrating-mpu6050/
-// Rongzhong Li
-// Sep 16, 2018
-
-// Arduino sketch that returns calibration offsets for MPU6050
-//   Version 1.1  (31th January 2014)
-// Done by Luis Ródenas <luisrodenaslorda@gmail.com>
-// Based on the I2Cdev library and previous work by Jeff Rowberg <jeff@rowberg.net>
-// Updates (of the library) should (hopefully) always be available at https://github.com/jrowberg/i2cdevlib
-
-// These offsets were meant to calibrate MPU6050's internal DMP, but can be also useful for reading sensors.
-// The effect of temperature has not been taken into account so I can't promise that it will work if you
-// calibrate indoors and then use it outdoors. Best is to calibrate and use at the same room temperature.
-
-/* ==========  LICENSE  ==================================
-  I2Cdev device library code is placed under the MIT license
-  Copyright (c) 2011 Jeff Rowberg
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in
-  all copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-  THE SOFTWARE.
-  =========================================================
-*/
-
-// I2Cdev and MPU6050 must be installed as libraries
 #include <I2Cdev.h>
 #include <MPU6050.h>
 #include <Wire.h>
@@ -176,13 +13,7 @@ int buffersize = 1000;   //Amount of readings used to average, make it higher to
 int acel_deadzone = 8;   //Acelerometer error allowed, make it lower to get more precision, but sketch may not converge  (default:8)
 int giro_deadzone = 1;   //Giro error allowed, make it lower to get more precision, but sketch may not converge  (default:1)
 
-// default I2C address is 0x68
-// specific I2C addresses may be passed as a parameter here
-// AD0 low = 0x68 (default for InvenSense evaluation board)
-// AD0 high = 0x69
-//MPU6050 mpu;
-MPU6050 mpu(0x68); // <-- use for AD0 high
-
+MPU6050 mpu(0x68);
 
 byte stage = 0;
 char choice;
@@ -191,7 +22,9 @@ int agMean[6];  //mean_ax, mean_ay, mean_az, mean_gx, mean_gy, mean_gz;
 int agOffset[6];  //ax_offset, ay_offset, az_offset, gx_offset, gy_offset, gz_offset;
 int mpuOffset[6];
 uint8_t timer = 0;
+
 #define SKIP 3
+
 #ifdef SKIP
 byte updateFrame = 0;
 #endif
@@ -204,18 +37,8 @@ byte jointIdx = 0;
 #define CMD_LEN 10
 bool printMPU = false;
 
-
 void setup() {
-#ifdef PIXEL_PIN
-  pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
-  pixels.clear(); // Set all pixel colors to 'off'
-  // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
-  pixels.setPixelColor(NUMPIXELS - 1, pixels.Color(LIT_ON, 0, 0));
 
-  pixels.show();   // Send the updated pixel colors to the hardware.
-#endif
-
-  // join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
   Wire.begin();
   TWBR = 24; // 400kHz I2C clock (200kHz if CPU is 8MHz)
@@ -227,14 +50,9 @@ void setup() {
   Serial.setTimeout(5);
   delay(1);
   while (!Serial);//check here
-  /*PTLF("MPU calibration data");
-    for (byte i = 0; i < 6; i++){
-    PTL(EEPROMReadInt(MPUCALIB + i * 2));
-    PT("\t");
-    }
-    PTL();*/
+
   beep(100, 50);
-  // initialize device
+  
   mpu.initialize();
 
   // wait for ready
@@ -700,4 +518,99 @@ void calibration() {
       break;
     }
   }
+}
+
+void saveMPUcalib(int * var) {
+  for (byte i = 0; i < 6; i++)
+    EEPROM.update(MPUCALIB + i, var[i]);
+}
+
+void writeConst() {
+  EEPROM.update(MELODY, sizeof(melody));
+  for (byte i = 0; i < sizeof(melody); i++)
+    EEPROM.update(MELODY - 1 - i, melody[i]);
+  PTLF("Reset joint calibration? (Y/n)");
+#ifndef AUTORUN
+  while (!Serial.available());
+  char resetJointCalibrationQ = Serial.read();
+#endif
+  for (byte i = 0; i < DOF; i++) {
+#ifndef AUTORUN
+    if (resetJointCalibrationQ == 'Y')
+      EEPROM.update(CALIB + i, calibs[i]);
+#endif
+    EEPROM.update(PIN + i, pins[i]);
+    EEPROM.update(MID_SHIFT + i, middleShifts[i]);
+    EEPROM.update(ROTATION_DIRECTION + i, rotationDirections[i]);
+    EEPROM.update(SERVO_ANGLE_RANGE + i, servoAngleRanges[i]);
+    for (byte para = 0; para < NUM_ADAPT_PARAM; para++) {
+      EEPROM.update(ADAPT_PARAM + i * NUM_ADAPT_PARAM + para, round(adaptiveParameterArray[i][para]));
+    }
+    /*PT(servoCalib(i));
+      PT(',');*/
+  }
+  //PTL();
+}
+
+void saveSkillInfoFromProgmemToOnboardEeprom() {
+  int skillAddressShift = 0;
+  unsigned int i2cEepromAddress = 0; //won't hurt if unused
+#ifdef I2C_EEPROM
+  PTLF("\n* Update Instincts? (Y/n)");
+#ifndef AUTORUN
+  while (!Serial.available());
+  char choice = Serial.read();
+  PT(choice == 'Y' ? "Will" : "Won't");
+#endif
+  PTL(" overwrite Instincts on external I2C EEPROM!");
+#endif
+  PTLF("Saving skill info...");
+  for (byte s = 0; s < NUM_SKILLS; s++) {//save skill info to on-board EEPROM
+    byte len = strlen(skillNameWithType[s]);
+    EEPROM.update(SKILLS + skillAddressShift++, len - 1); //the last char in name denotes skill type, I(nstinct) on external eeprom, N(ewbility) on progmem
+    PT(skillNameWithType[s][len - 1] == 'I' ? "I nstinct:\t" : "N ewbility:\t");
+    for (byte l = 0; l < len; l++) {
+      PT(skillNameWithType[s][l]);
+      EEPROM.update(SKILLS + skillAddressShift++, skillNameWithType[s][l]);
+    }
+    PTL();
+    //PTL("Current EEPROM address is " + String(SKILLS + skillAddressShift));
+#ifdef I2C_EEPROM
+    if (!EEPROMOverflow)
+      if (skillNameWithType[s][len - 1] == 'I'
+#ifndef AUTORUN
+          && choice == 'Y'
+#endif
+         ) { //  if there's instinct and there's i2c eeprom, and user decide to update.
+        // save the data array to i2c eeprom. its address will be saved to onboard eeprom
+        EEPROMWriteInt(SKILLS + skillAddressShift, i2cEepromAddress);
+        copyDataFromPgmToI2cEeprom(i2cEepromAddress,  (unsigned int) progmemPointer[s]);
+      }
+#endif
+    skillAddressShift += 2; // one int (2 bytes) for address
+  }
+  PTLF("  *********** Notice! *********");
+  PTLF("    Maximal storage of onboard EEPROM is 1024 bytes.");
+  PTF("\tInstinctive dictionary used ");
+  PT(SKILLS + skillAddressShift);
+  PT(" bytes (");
+  PT(float(100) * (SKILLS + skillAddressShift) / 1024);
+  PTLF(" %)!");
+#ifdef I2C_EEPROM
+#ifndef AUTORUN
+  if (choice == 'Y')
+#endif
+  {
+    PTF("    Maximal storage of external I2C EEPROM is ");
+    PT(EEPROM_SIZE);
+    PTLF(" bytes.");
+    PT("\tInstinctive data used ");
+    PT(i2cEepromAddress);
+    PT(" bytes (");
+    PT(float(100)*i2cEepromAddress / EEPROM_SIZE);
+    PTLF(" %)!");
+  }
+#endif
+  PTLF("  *****************************");
+  PTLF("Finished!");
 }
