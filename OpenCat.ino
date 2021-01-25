@@ -191,7 +191,7 @@ void checkBodyMotion()  {
   for (byte i = 0; i < 2; i++) {
     RollPitchDeviation[i] = ypr[2 - i] - motion.expectedRollPitch[i]; //all in degrees
     //PTL(RollPitchDeviation[i]);
-    RollPitchDeviation[i] = sign(ypr[2 - i]) * max(fabs(RollPitchDeviation[i]) - levelTolerance[i], 0);//filter out small angles
+   RollPitchDeviation[i] = sign(ypr[2 - i]) * max(fabs(RollPitchDeviation[i]) - levelTolerance[i], 0);//filter out small angles
   }
   //PTL(jointIdx);
 }

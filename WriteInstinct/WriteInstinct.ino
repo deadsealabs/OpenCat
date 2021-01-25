@@ -17,7 +17,7 @@ MPU6050 mpu(0x68);
 
 byte stage = 0;
 char choice;
-int ag[6];      //int16_t ax, ay, az, gx, gy, gz;
+int ag[6];      //int16_t ax, ay, az, gx, gy, gTWz;
 int agMean[6];  //mean_ax, mean_ay, mean_az, mean_gx, mean_gy, mean_gz;
 int agOffset[6];  //ax_offset, ay_offset, az_offset, gx_offset, gy_offset, gz_offset;
 int mpuOffset[6];
@@ -52,13 +52,14 @@ void setup() {
   while (!Serial);//check here
 
   beep(100, 50);
-  
+
   mpu.initialize();
 
   // wait for ready
   while (Serial.available() && Serial.read()); // empty buffer
   PTLF("\n* Include your robot's header file in OpenCat.h");
   PTLF("\n* Change the \"V*_*\" in \"#define NyBoard_V1_0\" according to your NyBoard version!");
+  
   PTLF("\n* OpenCat Writing Constants to EEPROM...");
   writeConst(); // only run for the first time when writing to the board.
   beep(30);

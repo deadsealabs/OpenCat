@@ -18,7 +18,7 @@
 
 
 #define INTERRUPT 0
-#define BUZZER 5
+#define BUZZER A0
 #define GYRO
 #define ULTRA_SOUND
 
