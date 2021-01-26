@@ -47,7 +47,7 @@ void setup() {
 #endif
 
   Serial.begin(BAUD_RATE);
-  Serial.setTimeout(5);
+//  Serial.setTimeout(5);
   delay(1);
   while (!Serial);//check here
 

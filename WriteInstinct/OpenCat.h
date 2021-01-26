@@ -1,4 +1,4 @@
-#include "InstinctBittle.h"
+#include "InstinctNybble.h"
 
 #define NyBoard_V1_0
 
@@ -77,8 +77,14 @@ void meow(int repeat = 0, int pause = 200, int startF = 50,  int endF = 200, int
 #define K32 "wk"      //walk
 
 #define K40 "tr"      //trot
+
+#ifdef NYBBLE
+#define K41 "lu"      //look up
+#define K42 "buttUp"    //butt up
+#else //BITTLE
 #define K41 "rn"      //run
 #define K42 "bd"      //bound
+#endif
 
 #define K50 "hi"      //greeting
 #define K51 "pu"      //push up
@@ -100,11 +106,18 @@ byte pins[] = {0, 1, 2, 3,
               };
 #define BATT A7
 #define DEVICE_ADDRESS 0x50
-#define BAUD_RATE 115200
+#define BAUD_RATE 9600
 
 
 #define HEAD
+
+#ifdef NYBBLE
+#define X_LEG
+#else //BITTLE
 #define LL_LEG
+#endif
+
+
 #define WALKING_DOF 8
 
 //remap pins for different walking modes, pin4 ~ pin15
@@ -155,7 +168,7 @@ byte right[] = {
 #define PWM_FACTOR 4
 #define MG92B_MIN 168*PWM_FACTOR
 #define MG92B_MAX 560*PWM_FACTOR
-#define MG92B_RANGE 150
+#define MG92B_RANGE 180
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
@@ -178,7 +191,7 @@ int8_t calibs[] = {0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
 
 //int8_t middleShifts[] = {0, 15, 0, 0,
 //                         -45, -45, -45, -45,
-//                         45, 45, -45, -45,
+//                         -45, 45, 45, 45,
 //                         -75, -75, -75, -75
 //                        };
 
@@ -190,14 +203,17 @@ int8_t middleShifts[] = {0, 15, 0, 0,
 
 int8_t rotationDirections[] = {1, -1, 1, 1,
                                1, -1, 1, -1,
-                               1, -1, 1, 1,
+                               1, -1, -1, 1,
                                -1, 1, 1, -1
                               };
-byte servoAngleRanges[] =  {SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE,
+
+byte servoAngleRanges[] =  {
+                            SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE,
                             SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE,
                             SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE,
                             SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE, SERVO_ANG_RANGE,
                            };
+                           
 float pulsePerDegree[DOF] = {};
 int8_t servoCalibs[DOF] = {};
 int currentAng[DOF] = {};

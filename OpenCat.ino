@@ -320,7 +320,7 @@ void loop() {
 #ifdef NyBoard_V0_1
       650
 #else
-      1
+      0
 #endif
      ) { //give the cat a break when voltage drops after sprint
     //adjust the thresholds according to your batteries' voltage
